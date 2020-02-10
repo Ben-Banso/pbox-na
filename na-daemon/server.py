@@ -25,9 +25,9 @@ import rsa
 from base64 import b64encode, b64decode
 
 PORT=5001
-PID_FILE="/tmp/nm-daemon.pid"
-LOG_FILE="/home/centos/nm-daemon.log"
-DB_PATH = "/home/centos/nm.db"
+PID_FILE="/tmp/na-daemon.pid"
+LOG_FILE="/home/ben/na-daemon.log"
+DB_PATH = "/home/ben/na.db"
 
 log_file=open(LOG_FILE, "a")
 sys.stdout = log_file
