@@ -36,9 +36,9 @@ sys.stderr = log_file
 db_conn = sqlite3.connect(DB_PATH)
 db = db_conn.cursor()
 
-db.execute('''CREATE TABLE IF NOT EXISTS users (user_id text unique, public_key text, memory int, storage int, cpu int)''')
+db.execute('''CREATE TABLE IF NOT EXISTS users (username text, public_key text, memory int, storage int, cpu int)''')
 db.execute('''CREATE TABLE IF NOT EXISTS challenges (remote_addr text, challenge text, creation_date timestamp)''')
-db.execute('''CREATE TABLE IF NOT EXISTS tokens (user_id text, remote_addr text, token text, creation_date timestamp)''')
+db.execute('''CREATE TABLE IF NOT EXISTS tokens (username text, remote_addr text, token text, creation_date timestamp)''')
 
 db_conn.close()
 
@@ -60,7 +60,7 @@ def check_token(request):
         user_id = ""
         db_conn = sqlite3.connect(DB_PATH)
         db = db_conn.cursor()
-        for row in db.execute('SELECT user_id FROM tokens WHERE token=?', [token]):
+        for row in db.execute('SELECT username FROM tokens WHERE token=?', [token]):
             user_id = row[0]
         if(user_id == ""):
             db_conn.close()
@@ -91,7 +91,6 @@ def auth_api():
     :return:        the rendered template 'home.html'
     """
     if not request.json:
-        print("not json")
         abort(400)
 
     if 'seed' in request.json:
@@ -111,7 +110,6 @@ def auth_api():
             db_conn.close()
             abort(400)
         # Sned it back
-        print("if")
         return jsonify({'challenge': challenge})
     # Is the challenge is prensent, check the validity
     else:
@@ -124,7 +122,6 @@ def auth_api():
         db_conn = sqlite3.connect(DB_PATH)
         db = db_conn.cursor()
 
-        
         try:
             for row in db.execute("SELECT creation_date FROM challenges WHERE remote_addr=? and challenge=?", [remote_addr, challenge]):
                 creation_date =  row[0]
@@ -136,12 +133,12 @@ def auth_api():
             abort(401)
 
         # For all the users, check if a key decrypt the challenge correctly
-        for row in db.execute("SELECT user_id, public_key FROM users"):
+        for row in db.execute("SELECT username, public_key FROM users"):
             pub_key = rsa.PublicKey.load_pkcs1_openssl_pem(row[1].replace('\\n', '\n'))
             try:
                 check = rsa.verify(challenge.encode('utf-8'), b64decode(response), pub_key)
             except:
-                abort(400)
+                #abort(400)
             if(check != None):
                 user_id = row[0]
         # If one match
@@ -149,7 +146,7 @@ def auth_api():
             # Generate a token
             token = ''.join(random.choice(string.ascii_letters + string.digits) for x in range(50))
             # Save it in database with a timestamp
-            db.execute("INSERT INTO tokens (user_id, remote_addr, token, creation_date) VALUES (?,?,?,?)", [user_id, request.remote_addr, token, datetime.datetime.now()])
+            db.execute("INSERT INTO tokens (username, remote_addr, token, creation_date) VALUES (?,?,?,?)", [user_id, request.remote_addr, token, datetime.datetime.now()])
             db.execute("DELETE FROM challenges where remote_addr=? and challenge=?", [request.remote_addr, challenge])
             db_conn.commit()
             db_conn.close()
@@ -236,8 +233,8 @@ def get_users():
     db_conn = sqlite3.connect(DB_PATH)
     db = db_conn.cursor()
     try:
-        for row in db.execute("SELECT user_id, public_key FROM users"):
-            users.append({"user_id": row[0], "public_key": row[1]})
+        for row in db.execute("SELECT username, public_key FROM users"):
+            users.append({"username": row[0], "public_key": row[1]})
         db_conn.close()
     except sqlite3.IntegrityError:
         db_conn.close()
@@ -245,12 +242,12 @@ def get_users():
 
 
     return jsonify({'users': users})
-    
+
 
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
 
     print("App start")
 
-    with daemon.DaemonContext(stdout=sys.stdout, stderr=sys.stderr, working_directory='/home/centos/nm-daemon-master/', pidfile=PIDLockFile(PID_FILE)):
-        app.run(host="0.0.0.0", port=PORT)
+    #with daemon.DaemonContext(stdout=sys.stdout, stderr=sys.stderr, working_directory='/home/centos/nm-daemon-master/', pidfile=PIDLockFile(PID_FILE)):
+    app.run(host="0.0.0.0", port=PORT)
