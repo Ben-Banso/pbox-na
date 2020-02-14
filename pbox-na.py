@@ -6,10 +6,6 @@ from flask import (
     render_template
 )
 
-import daemon
-from lockfile.pidlockfile import PIDLockFile
-
-import logging
 
 import subprocess
 import os
@@ -20,18 +16,17 @@ import random
 import string
 
 import datetime
+import configparser
 
 import rsa
 from base64 import b64encode, b64decode
 
-PORT=5001
-PID_FILE="/tmp/na-daemon.pid"
-LOG_FILE="/home/ben/na-daemon.log"
-DB_PATH = "/home/ben/na.db"
 
-log_file=open(LOG_FILE, "a")
-sys.stdout = log_file
-sys.stderr = log_file
+config = configparser.RawConfigParser()
+config.read("/etc/pbox-na/settings.conf")
+PORT=config.get("Config", "PORT")
+DB_PATH = config.get("Config", "DB_PATH")
+
 
 db_conn = sqlite3.connect(DB_PATH)
 db = db_conn.cursor()
@@ -139,6 +134,7 @@ def auth_api():
                 check = rsa.verify(challenge.encode('utf-8'), b64decode(response), pub_key)
             except:
                 #abort(400)
+                print("Do nothing")
             if(check != None):
                 user_id = row[0]
         # If one match
@@ -249,5 +245,4 @@ if __name__ == '__main__':
 
     print("App start")
 
-    #with daemon.DaemonContext(stdout=sys.stdout, stderr=sys.stderr, working_directory='/home/centos/nm-daemon-master/', pidfile=PIDLockFile(PID_FILE)):
     app.run(host="0.0.0.0", port=PORT)

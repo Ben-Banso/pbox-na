@@ -1,0 +1,11 @@
+[Unit]
+Description=Node agent for personal box
+
+[Service]
+Type=simple
+User=root
+ExecStart=python3 /usr/sbin/pbox-na.py
+
+
+[Install]
+WantedBy=multi-user.target
