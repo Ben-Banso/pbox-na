@@ -4,7 +4,7 @@
 
 Summary: Node Agent for Personal Box
 Name: pbox-na
-Version: 0.0.16
+Version: 0.1.16
 Release: 1
 BuildArch: noarch
 Requires: python3
