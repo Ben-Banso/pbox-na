@@ -1,7 +1,7 @@
 import unittest
 import importlib
 
-app = __import__("/home/ben/projects/personal-box/na/pbox-na.py")
+app = __import__("pbox-na.py")
 
 class MyTestCase(unittest.TestCase):
         
