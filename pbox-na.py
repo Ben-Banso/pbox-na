@@ -3,7 +3,8 @@ from flask import (
     jsonify,
     abort,
     request,
-    render_template
+    render_template,
+    g
 )
 
 
@@ -22,11 +23,16 @@ import rsa
 from base64 import b64encode, b64decode
 
 
-config = configparser.RawConfigParser()
-config.read("/etc/pbox-na/settings.conf")
-PORT=config.get("Config", "PORT")
-DB_PATH = config.get("Config", "DB_PATH")
-
+# If we run as app
+if(__name__ == "__main__"):
+    config = configparser.RawConfigParser()
+    config.read("/etc/pbox-na/settings.conf")
+    PORT=config.get("Config", "PORT")
+    DB_PATH = config.get("Config", "DB_PATH")
+# For tests
+else:
+    PORT=5000
+    DB_PATH="na.db"
 
 db_conn = sqlite3.connect(DB_PATH)
 db = db_conn.cursor()
@@ -44,6 +50,18 @@ db_conn.close()
 # Create the application instance
 app = Flask(__name__, template_folder="templates")
 
+def get_db():
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DB_PATH)
+    return db
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(g, '_database', None)
+    if db is not None:
+        db.close()
+
 def check_token(request):
     """
     This take a request object, check the presence and the validity of the token
@@ -53,12 +71,11 @@ def check_token(request):
     if 'X-Api-Token' in request.headers:
         token = request.headers['X-Api-Token'].strip('\n')
         user_id = ""
-        db_conn = sqlite3.connect(DB_PATH)
+        db_conn = get_db()
         db = db_conn.cursor()
         for row in db.execute('SELECT username FROM tokens WHERE token=?', [token]):
             user_id = row[0]
         if(user_id == ""):
-            db_conn.close()
             abort(401)
 
     else:
@@ -94,15 +111,13 @@ def auth_api():
         challenge = request.json['seed'] + ''.join(random.choice(string.ascii_letters + string.digits) for x in range(40))
         # Put it in database
 
-        db_conn = sqlite3.connect(DB_PATH)
+        db_conn = get_db()
         db = db_conn.cursor()
 
         try:
             db.execute("INSERT INTO challenges (remote_addr, challenge, creation_date) VALUES (?,?,?)", [request.remote_addr, challenge, datetime.datetime.now()])
             db_conn.commit()
-            db_conn.close()
         except sqlite3.IntegrityError:
-            db_conn.close()
             abort(400)
         # Sned it back
         return jsonify({'challenge': challenge})
@@ -114,14 +129,13 @@ def auth_api():
         user_id = ""
         creation_date = 0
 
-        db_conn = sqlite3.connect(DB_PATH)
+        db_conn = get_db()
         db = db_conn.cursor()
 
         try:
             for row in db.execute("SELECT creation_date FROM challenges WHERE remote_addr=? and challenge=?", [remote_addr, challenge]):
                 creation_date =  row[0]
         except sqlite3.IntegrityError:
-            db_conn.close()
             abort(400)
 
         if creation_date == 0:
@@ -145,11 +159,9 @@ def auth_api():
             db.execute("INSERT INTO tokens (username, remote_addr, token, creation_date) VALUES (?,?,?,?)", [user_id, request.remote_addr, token, datetime.datetime.now()])
             db.execute("DELETE FROM challenges where remote_addr=? and challenge=?", [request.remote_addr, challenge])
             db_conn.commit()
-            db_conn.close()
 
             return jsonify({'status':'success', 'token':token})
         else:
-            db_conn.close()
             abort(401)
     abort(400)
 
@@ -226,14 +238,12 @@ def get_users():
     user_id = check_token(request)
     users = []
 
-    db_conn = sqlite3.connect(DB_PATH)
+    db_conn = get_db()
     db = db_conn.cursor()
     try:
         for row in db.execute("SELECT username, public_key FROM users"):
             users.append({"username": row[0], "public_key": row[1]})
-        db_conn.close()
     except sqlite3.IntegrityError:
-        db_conn.close()
         abort(400)
 
 
